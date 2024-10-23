@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
 import {getGames, getPlayers} from '../database.js'
-import {sendResponse} from '../utils/websocket.js'
+import {sendResponse} from '../utils/sendResponse.js'
 
 export function handleGameRequests(ws, type, data, id) {
   const {gameId, indexPlayer} = data
