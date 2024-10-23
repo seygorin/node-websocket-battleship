@@ -1,5 +1,5 @@
 {
-    "name": "ws_task",
+    "name": "websocket-battleship-server",
     "version": "1.0.0",
     "description": "Template for the WebSocket remote control task",
     "main": "index.js",
@@ -9,7 +9,7 @@
         "start:dev": "nodemon ./index.js",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "author": "Andrei Auchynnikau",
+    "author": "seygorin",
     "keywords": [],
     "license": "ISC",
     "devDependencies": {
