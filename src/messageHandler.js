@@ -4,47 +4,68 @@ import {handleRoomRequests} from './handlers/roomHandler.js'
 import {handleShipRequests} from './handlers/shipHandler.js'
 import {handleGameRequests} from './handlers/gameHandler.js'
 import {sendResponse} from './utils/sendResponse.js'
+import {logger} from './utils/logger.js'
 
-export function handleMessage(ws, message, wss, wsClients) {
+const MessageTypes = {
+  REGISTER: 'reg',
+  CREATE_ROOM: 'create_room',
+  JOIN_ROOM: 'add_user_to_room',
+  ADD_SHIPS: 'add_ships',
+  ATTACK: 'attack',
+  RANDOM_ATTACK: 'randomAttack',
+}
+
+const messageHandlers = {
+  [MessageTypes.REGISTER]: handlePlayerRequests,
+  [MessageTypes.CREATE_ROOM]: (ws, data, id, wss, wsManager) =>
+    handleRoomRequests(ws, MessageTypes.CREATE_ROOM, data, id, wss, wsManager),
+  [MessageTypes.JOIN_ROOM]: (ws, data, id, wss, wsManager) =>
+    handleRoomRequests(ws, MessageTypes.JOIN_ROOM, data, id, wss, wsManager),
+  [MessageTypes.ADD_SHIPS]: handleShipRequests,
+  [MessageTypes.ATTACK]: (ws, data, id, wss, wsManager) =>
+    handleGameRequests(ws, MessageTypes.ATTACK, data, id, wss, wsManager),
+  [MessageTypes.RANDOM_ATTACK]: (ws, data, id, wss, wsManager) =>
+    handleGameRequests(
+      ws,
+      MessageTypes.RANDOM_ATTACK,
+      data,
+      id,
+      wss,
+      wsManager
+    ),
+}
+
+export function handleMessage(ws, message, wss, wsManager) {
+  let parsedMessage
   try {
-    console.log('MessageHandler: Received raw message:', message.toString())
-    const parsedMessage = JSON.parse(message.toString())
-
-    if (typeof parsedMessage.data === 'string' && parsedMessage.data !== '') {
-      console.log('MessageHandler: Parsing data string:', parsedMessage.data)
-      parsedMessage.data = JSON.parse(parsedMessage.data)
-    }
-
-    console.log('MessageHandler: Fully parsed message:', parsedMessage)
-    console.log('MessageHandler: wsClients available:', !!wsClients)
-
+    parsedMessage = JSON.parse(message)
     const {type, data, id} = parsedMessage
 
-    switch (type) {
-      case 'reg':
-        handlePlayerRequests(ws, data, id, wss, wsClients)
-        break
-      case 'create_room':
-      case 'add_user_to_room':
-        handleRoomRequests(ws, type, data, id, wss, wsClients)
-        break
-      case 'add_ships':
-        handleShipRequests(ws, data, id, wss, wsClients)
-        break
-      case 'attack':
-      case 'randomAttack':
-        handleGameRequests(ws, type, data, id, wss, wsClients)
-        break
-      default:
-        console.error('Unknown message type:', type)
-        sendResponse(ws, 'error', {message: 'Unknown message type'}, id)
+    let parsedData = data
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data)
+      } catch (e) {
+        logger.error('Failed to parse data string', {data, error: e.message})
+      }
+    }
+
+    logger.game('Received message', {type, data: parsedData})
+
+    const handler = messageHandlers[type]
+    if (handler) {
+      handler(ws, parsedData, id, wss, wsManager)
+    } else {
+      logger.error('Unknown message type', {type})
+      sendResponse(ws, 'error', {message: 'Unknown message type'}, id || 0)
     }
   } catch (error) {
-    console.error('MessageHandler Error:', error)
-    console.log('MessageHandler Error State:', {
-      ws: ws ? 'exists' : 'null',
-      wsClients: wsClients ? 'exists' : 'null',
+    logger.error('Message handling error', {
+      error: error.message,
+      stack: error.stack,
+      receivedMessage: message,
     })
-    sendResponse(ws, 'error', {message: 'Invalid message format'}, 0)
+    const messageId = parsedMessage?.id || 0
+    sendResponse(ws, 'error', {message: 'Failed to process message'}, messageId)
   }
 }

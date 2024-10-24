@@ -1,24 +1,19 @@
 import {WebSocketServer} from 'ws'
 import {createServer} from 'http'
 import {handleMessage} from './messageHandler.js'
-import {initializeInMemoryDB} from './database.js'
+import {cleanup} from './database.js'
+import {WebSocketManager} from './network/WebSocketManager.js'
 
 const WS_PORT = 3000
 const wsServer = createServer()
 const wss = new WebSocketServer({server: wsServer})
-
-const wsClients = new Map()
-
-initializeInMemoryDB()
+const wsManager = new WebSocketManager()
 
 wss.on('connection', (ws) => {
-  console.log('New WebSocket client connected')
-  wsClients.set(ws, {currentPlayer: null})
-  console.log('Current wsClients size:', wsClients.size)
+  wsManager.addClient(ws)
 
   ws.on('message', (message) => {
-    console.log('Received message from client')
-    handleMessage(ws, message, wss, wsClients)
+    handleMessage(ws, message, wss, wsManager)
   })
 
   ws.on('error', (error) => {
@@ -26,10 +21,11 @@ wss.on('connection', (ws) => {
   })
 
   ws.on('close', () => {
-    console.log('WebSocket client disconnected')
-    wsClients.delete(ws)
+    wsManager.removeClient(ws)
   })
 })
+
+setInterval(cleanup, 5 * 60 * 1000)
 
 console.log(`Starting WebSocket server on port ${WS_PORT}`)
 wsServer.listen(WS_PORT, () => {

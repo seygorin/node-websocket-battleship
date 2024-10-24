@@ -1,88 +1,86 @@
-import WebSocket from 'ws'
-import {getGames, getPlayers} from '../database.js'
+import {WebSocket} from 'ws'
+import {getGame, updateGame, updatePlayerStats} from '../database.js'
 import {sendResponse} from '../utils/sendResponse.js'
+import {logger} from '../utils/logger.js'
+import {GameStatus} from '../types/gameTypes.js'
+import {GameLogic} from '../game/GameLogic.js'
 
-export function handleGameRequests(ws, type, data, id) {
-  const {gameId, indexPlayer} = data
-  const game = getGames().find((g) => g.idGame === gameId)
+export function handleGameRequests(ws, type, data, id, wss, wsManager) {
+  const {gameId, x, y} = data
+  const game = getGame(gameId)
 
-  if (!game) {
-    sendResponse(ws, 'error', {message: 'Game not found'}, id)
-    return
-  }
-
-  if (game.currentPlayer !== indexPlayer) {
-    sendResponse(ws, 'error', {message: 'Not your turn'}, id)
+  if (!validateGameAction(ws, game, wsManager, id)) {
     return
   }
 
   switch (type) {
     case 'attack':
-      handleAttack(ws, game, data)
+      handleAttack(ws, game, x, y, wsManager)
       break
     case 'randomAttack':
-      handleRandomAttack(ws, game, indexPlayer)
+      handleRandomAttack(ws, game, wsManager)
       break
+    default:
+      logger.error('Unknown game action', {type})
+      sendResponse(ws, 'error', {message: 'Unknown game action'}, id)
   }
 }
 
-function handleAttack(ws, game, data) {
-  const {x, y, indexPlayer} = data
-  const result = performAttack(game, x, y, indexPlayer)
-  sendAttackResult(ws, game, result)
-  checkGameEnd(ws, game)
-}
-
-function handleRandomAttack(ws, game, indexPlayer) {
-  const {x, y} = getRandomCoordinates(game.board)
-  const result = performAttack(game, x, y, indexPlayer)
-  sendAttackResult(ws, game, result)
-  checkGameEnd(ws, game)
-}
-
-function performAttack(game, x, y, indexPlayer) {
-  const enemyShips = game.ships.find((s) => s.player !== indexPlayer).ships
-  const hitShip = enemyShips.find((ship) => isShipHit(ship, x, y))
-
-  if (hitShip) {
-    game.board[y][x] = 2
-    updateShipStatus(hitShip, x, y)
-    return {x, y, status: isShipSunk(hitShip) ? 'killed' : 'shot'}
-  } else {
-    game.board[y][x] = 1
-    game.currentPlayer = game.players.find((p) => p !== indexPlayer)
-    return {x, y, status: 'miss'}
+function validateGameAction(ws, game, wsManager, id) {
+  if (!game) {
+    sendResponse(ws, 'error', {message: 'Game not found'}, id)
+    return false
   }
-}
 
-function sendAttackResult(ws, game, result) {
-  sendResponse(ws, 'attack', {...result, currentPlayer: game.currentPlayer}, 0)
-  sendResponse(ws, 'turn', {currentPlayer: game.currentPlayer}, 0)
-}
-
-function checkGameEnd(ws, game) {
-  const losingPlayer = game.ships.find((s) =>
-    s.ships.every((ship) => ship.sunk)
-  )
-  if (losingPlayer) {
-    const winningPlayer = game.players.find((p) => p !== losingPlayer.player)
-    sendResponse(ws, 'finish', {winPlayer: winningPlayer}, 0)
-    updateWinnerStats(winningPlayer)
+  const currentPlayer = wsManager.getPlayerForClient(ws)
+  if (!currentPlayer || currentPlayer.index !== game.currentPlayer) {
+    sendResponse(ws, 'error', {message: 'Not your turn'}, id)
+    return false
   }
+
+  if (game.status !== GameStatus.PLAYING) {
+    sendResponse(ws, 'error', {message: 'Game is not in playing state'}, id)
+    return false
+  }
+
+  return true
 }
 
-function updateWinnerStats(winningPlayerId) {
-  const players = getPlayers()
-  const winner = players.find((p) => p.index.toString() === winningPlayerId)
-  if (winner) {
-    winner.wins++
-  }
+function handleAttack(ws, game, x, y, wsManager) {
+  const attackResult = GameLogic.processAttack(game, x, y)
+
+  game = updateGame(game.idGame, {
+    board: game.board,
+    currentPlayer: GameLogic.getNextPlayer(game),
+    status: attackResult.gameOver ? GameStatus.FINISHED : GameStatus.PLAYING,
+  })
+
+  broadcastGameState(game, attackResult, wsManager)
 }
+
+function broadcastGameState(game, attackResult, wsManager) {
+  game.players.forEach((playerId) => {
+    const playerWs = wsManager.findPlayerConnection(playerId)
+    if (playerWs) {
+      const playerView = GameLogic.getPlayerGameView(game, playerId)
+      sendResponse(
+        playerWs,
+        'gameState',
+        {
+          ...playerView,
+          attackResult,
+          currentPlayer: game.currentPlayer,
+        },
+        0
+      )
+    }
+  })
+}
+
+function updateWinnerStats(winningPlayerId) {}
 
 function isShipHit(ship, x, y) {}
 
 function updateShipStatus(ship, x, y) {}
 
 function isShipSunk(ship) {}
-
-function getRandomCoordinates(board) {}

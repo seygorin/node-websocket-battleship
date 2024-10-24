@@ -1,51 +1,93 @@
 import WebSocket from 'ws'
-import {getGames, addGame} from '../database.js'
+import {getGame, updateGame} from '../database.js'
 import {sendResponse} from '../utils/sendResponse.js'
+import {validateShips} from '../utils/gameUtils.js'
+import {GameLogic} from '../game/GameLogic.js'
 
-export function handleShipRequests(ws, data, id) {
-  const {gameId, ships, indexPlayer} = data
-  const games = getGames()
-  let game = games.find((g) => g.idGame === gameId)
+export function handleShipRequests(ws, data, id, wss, wsManager) {
+  const {gameId, ships} = data
+  const game = getGame(gameId)
+
+  const currentPlayer = wsManager.getPlayerForClient(ws)
+  const indexPlayer = currentPlayer?.index
 
   if (!game) {
-    game = {
-      idGame: gameId,
-      players: [indexPlayer],
-      ships: [{player: indexPlayer, ships}],
-      currentPlayer: '',
-      board: initializeBoard(),
-    }
-    addGame(game)
-  } else {
-    game.players.push(indexPlayer)
-    game.ships.push({player: indexPlayer, ships})
+    sendResponse(ws, 'error', {message: 'Game not found'}, id)
+    return
   }
 
-  if (game.ships.length === 2) {
-    startGame(ws, game)
+  if (!currentPlayer || indexPlayer === undefined) {
+    sendResponse(ws, 'error', {message: 'Player not found'}, id)
+    return
+  }
+
+  if (!game.players.includes(indexPlayer)) {
+    sendResponse(ws, 'error', {message: 'Player not in this game'}, id)
+    return
+  }
+
+  const existingShipsIndex = game.ships.findIndex(
+    (s) => s.player === indexPlayer
+  )
+
+  const validatedShips = validateShips(ships)
+
+  if (existingShipsIndex !== -1) {
+    game.ships[existingShipsIndex] = {
+      player: indexPlayer,
+      ships: validatedShips,
+    }
   } else {
-    sendResponse(ws, 'wait_for_opponent', {}, id)
+    game.ships.push({
+      player: indexPlayer,
+      ships: validatedShips,
+    })
+  }
+
+  updateGame(game.idGame, {ships: game.ships})
+
+  const playersWithShips = game.ships.map((s) => s.player)
+  const allPlayersReady = game.players.every((p) =>
+    playersWithShips.includes(p)
+  )
+
+  if (allPlayersReady) {
+    startGame(ws, game, wss, wsManager)
+  } else {
+    game.players.forEach((playerId) => {
+      const playerConnection = wsManager.findPlayerConnection(playerId)
+      if (playerConnection) {
+        sendResponse(playerConnection, 'wait_for_opponent', {}, id)
+      }
+    })
   }
 }
 
-function startGame(ws, game) {
-  game.currentPlayer = game.players[Math.floor(Math.random() * 2)]
+function startGame(ws, game, wss, wsManager) {
+  const randomPlayer =
+    game.players[Math.floor(Math.random() * game.players.length)]
 
-  game.players.forEach((playerId) => {
-    const playerShips = game.ships.find((s) => s.player === playerId).ships
-    sendResponse(
-      ws,
-      'start_game',
-      {ships: playerShips, currentPlayerIndex: game.currentPlayer},
-      0
-    )
+  updateGame(game.idGame, {
+    currentPlayer: randomPlayer,
+    status: 'playing',
   })
 
-  sendResponse(ws, 'turn', {currentPlayer: game.currentPlayer}, 0)
-}
+  game.players.forEach((playerId) => {
+    const playerConnection = wsManager.findPlayerConnection(playerId)
+    if (playerConnection) {
+      const playerShips = game.ships.find((s) => s.player === playerId)?.ships
 
-function initializeBoard() {
-  return Array(10)
-    .fill(null)
-    .map(() => Array(10).fill(0))
+      sendResponse(
+        playerConnection,
+        'start_game',
+        {
+          ships: playerShips,
+          currentPlayerIndex: randomPlayer,
+        },
+        0
+      )
+    }
+  })
+
+  sendResponse(ws, 'turn', {currentPlayer: randomPlayer}, 0, wss)
 }

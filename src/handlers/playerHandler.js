@@ -1,19 +1,32 @@
 import WebSocket from 'ws'
 import {getPlayers, addPlayer} from '../database.js'
 import {sendResponse} from '../utils/sendResponse.js'
+import {logger} from '../utils/logger.js'
 
-export function handlePlayerRequests(ws, data, id, wss, wsClients) {
-  console.log('PlayerHandler: Starting player request handling')
-  console.log('PlayerHandler: Received data:', data)
-  console.log('PlayerHandler: Current wsClients:', wsClients)
-
+export function handlePlayerRequests(ws, data, id, wss, wsManager) {
   const {name, password} = data
+  logger.player('Player request data', {name})
+
+  if (!name || !password) {
+    logger.error('Invalid player data', {name})
+    sendResponse(
+      ws,
+      'error',
+      {
+        message: 'Name and password are required',
+        error: true,
+        errorText: 'Name and password are required',
+      },
+      id
+    )
+    return
+  }
+
   const players = getPlayers()
   const existingPlayer = players.find((p) => p.name === name)
 
   let responseData
   if (existingPlayer) {
-    console.log('PlayerHandler: Found existing player:', existingPlayer)
     if (existingPlayer.password === password) {
       responseData = {
         name: existingPlayer.name,
@@ -21,9 +34,12 @@ export function handlePlayerRequests(ws, data, id, wss, wsClients) {
         error: false,
         errorText: '',
       }
-      console.log('PlayerHandler: Setting current player for connection')
-      wsClients.get(ws).currentPlayer = existingPlayer
-      console.log('PlayerHandler: Updated wsClients:', wsClients)
+      wsManager.setPlayerForClient(ws, {
+        name: existingPlayer.name,
+        index: existingPlayer.index,
+        password: existingPlayer.password,
+        wins: existingPlayer.wins,
+      })
     } else {
       responseData = {
         name,
@@ -33,7 +49,6 @@ export function handlePlayerRequests(ws, data, id, wss, wsClients) {
       }
     }
   } else {
-    console.log('PlayerHandler: Creating new player')
     const newPlayer = {
       name,
       password,
@@ -47,9 +62,7 @@ export function handlePlayerRequests(ws, data, id, wss, wsClients) {
       error: false,
       errorText: '',
     }
-    console.log('PlayerHandler: Setting current player for new connection')
-    wsClients.get(ws).currentPlayer = newPlayer
-    console.log('PlayerHandler: Updated wsClients for new player:', wsClients)
+    wsManager.setPlayerForClient(ws, newPlayer)
   }
 
   sendResponse(ws, 'reg', responseData, id)
