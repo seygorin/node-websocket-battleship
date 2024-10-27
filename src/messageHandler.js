@@ -13,6 +13,9 @@ const MessageTypes = {
   ADD_SHIPS: 'add_ships',
   ATTACK: 'attack',
   RANDOM_ATTACK: 'randomAttack',
+  START_GAME: 'start_game',
+  TURN: 'turn',
+  FINISH: 'finish',
 }
 
 const messageHandlers = {

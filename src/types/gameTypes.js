@@ -1,6 +1,5 @@
 export const GameStatus = {
   WAITING: 'waiting',
-  PLACING_SHIPS: 'placing_ships',
   PLAYING: 'playing',
   FINISHED: 'finished',
 }
