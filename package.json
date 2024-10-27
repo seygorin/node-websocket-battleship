@@ -2,24 +2,27 @@
     "name": "websocket-battleship-server",
     "version": "1.0.0",
     "description": "Template for the WebSocket remote control task",
-    "main": "index.js",
+    "main": "dist/index.js",
     "type": "module",
     "scripts": {
-        "start": "node ./index.js",
-        "start:dev": "nodemon ./index.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "start": "node dist/index.js",
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "clean": "rm -rf dist",
+        "rebuild": "npm run clean && npm run build",
+        "type-check": "tsc --noEmit"
     },
     "author": "seygorin",
     "keywords": [],
     "license": "ISC",
     "devDependencies": {
-        "nodemon": "^2.0.16"
+        "@types/node": "^18.19.3",
+        "@types/ws": "^8.5.10",
+        "ts-node": "10.9.2",
+        "tsx": "^4.7.0",
+        "typescript": "5.0.4"
     },
     "dependencies": {
-        "@types/node": "^22.7.9",
-        "@types/ws": "^8.5.12",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.6.3",
         "ws": "^8.18.0"
     }
 }

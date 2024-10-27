@@ -1,4 +1,5 @@
-import {logger} from '../utils/logger.js'
+import {logger} from './logger'
+import {Ship, Position, ShipType} from '../types'
 
 export function initializeBoard() {
   return Array(10)
@@ -6,15 +7,22 @@ export function initializeBoard() {
     .map(() => Array(10).fill(0))
 }
 
-export function validateShips(ships) {
+interface ShipToValidate {
+  position: Position
+  direction: boolean
+  length: number
+  type: ShipType
+}
+
+export function validateShips(ships: ShipToValidate[]): Ship[] {
   return ships.map((ship) => {
-    const position = {
+    const position: Position = {
       x: Math.min(Math.max(Number(ship.position.x), 0), 9),
       y: Math.min(Math.max(Number(ship.position.y), 0), 9),
     }
 
-    const direction = !Boolean(ship.direction)
-    const length = Number(ship.length)
+    const direction: boolean = !Boolean(ship.direction)
+    const length: number = Number(ship.length)
 
     if (direction) {
       if (position.x + length > 10) {

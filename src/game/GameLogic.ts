@@ -1,5 +1,6 @@
-import {GameStatus, CellStatus} from '../types/gameTypes.js'
-import {logger} from '../utils/logger.js'
+import {GameStatus, CellStatus} from '../types/gameTypes'
+import {logger} from '../utils/logger'
+import {Game, Position, Ship, PlayerIndex} from '../types'
 
 export class GameLogic {
   static processAttack(game, x, y) {

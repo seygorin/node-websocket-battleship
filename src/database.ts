@@ -1,9 +1,13 @@
-import {logger} from './utils/logger.js'
-import {GameStatus} from './types/gameTypes.js'
-import {initializeBoard} from './utils/gameUtils.js'
-import {generateGameId} from './utils/gameUtils.js'
+import {logger} from './utils/logger'
+import {GameStatus} from './types/gameTypes'
+import {initializeBoard, generateGameId} from './utils/gameUtils'
+import {Player, Room, Game} from './types/database'
 
 class GameDatabase {
+  private players: Map<number, Player>
+  private rooms: Map<string, Room>
+  private games: Map<string, Game>
+
   constructor() {
     this.players = new Map()
     this.rooms = new Map()
@@ -11,20 +15,20 @@ class GameDatabase {
   }
 
   // Players
-  getPlayers() {
+  getPlayers(): Player[] {
     return Array.from(this.players.values())
   }
 
-  addPlayer(player) {
+  addPlayer(player: Player): void {
     this.players.set(player.index, player)
     logger.player('Player added', {name: player.name, index: player.index})
   }
 
-  getPlayer(index) {
+  getPlayer(index: number): Player | undefined {
     return this.players.get(index)
   }
 
-  updatePlayerStats(playerId, wins) {
+  updatePlayerStats(playerId: number, wins: number): boolean {
     const player = this.players.get(playerId)
     if (player) {
       player.wins = (player.wins || 0) + wins
@@ -39,9 +43,9 @@ class GameDatabase {
   }
 
   // Rooms
-  createRoom(creator) {
+  createRoom(creator: Player): Room {
     const roomId = Math.random().toString(36).substr(2, 9)
-    const room = {
+    const room: Room = {
       roomId,
       roomUsers: [],
       created: Date.now(),
@@ -51,15 +55,15 @@ class GameDatabase {
     return room
   }
 
-  getRoom(roomId) {
+  getRoom(roomId: string): Room | undefined {
     return this.rooms.get(roomId)
   }
 
-  getRooms() {
+  getRooms(): Room[] {
     return Array.from(this.rooms.values())
   }
 
-  addUserToRoom(roomId, user) {
+  addUserToRoom(roomId: string, user: Player): boolean {
     const room = this.rooms.get(roomId)
     if (room && room.roomUsers.length < 2) {
       if (!room.roomUsers.some((u) => u.index === user.index)) {
@@ -71,7 +75,7 @@ class GameDatabase {
     return false
   }
 
-  removeRoom(roomId) {
+  removeRoom(roomId: string): boolean {
     const removed = this.rooms.delete(roomId)
     if (removed) {
       logger.room('Room removed', {roomId})
@@ -80,34 +84,35 @@ class GameDatabase {
   }
 
   // Games
-  createGame(room) {
+  createGame(room: Room): Game {
     const gameId = Math.random().toString(36).substr(2, 9)
-    const game = {
+    const game: Game = {
       idGame: gameId,
       players: room.roomUsers.map((user) => user.index),
       ships: [],
       currentPlayer: '',
       board: initializeBoard(),
-      status: 'waiting',
+      status: GameStatus.WAITING,
       lastUpdate: Date.now(),
+      type: 'multi',
     }
     this.games.set(gameId, game)
     logger.game('Game created', {gameId, players: game.players})
     return game
   }
 
-  getGame(gameId) {
+  getGame(gameId: string): Game | undefined {
     return this.games.get(gameId)
   }
 
-  getGames() {
+  getGames(): Game[] {
     return Array.from(this.games.values())
   }
 
-  updateGame(gameId, updateData) {
+  updateGame(gameId: string, updateData: Partial<Game>): Game | null {
     const game = this.games.get(gameId)
     if (game) {
-      const updatedGame = {
+      const updatedGame: Game = {
         ...game,
         ...updateData,
         lastUpdate: Date.now(),
@@ -121,7 +126,7 @@ class GameDatabase {
 
   // Utility methods
 
-  cleanup() {
+  cleanup(): void {
     const now = Date.now()
     const TIMEOUT = 30 * 60 * 1000 // 30 minutes
 
@@ -140,54 +145,54 @@ class GameDatabase {
     }
   }
 
-  clear() {
+  clear(): void {
     this.players.clear()
     this.rooms.clear()
     this.games.clear()
     logger.game('Database cleared')
   }
 
-  createSinglePlayerGame(playerIndex) {
+  createSinglePlayerGame(playerIndex: number): Game {
     const gameId = generateGameId()
-    const game = {
+    const game: Game = {
       idGame: gameId,
-      players: [playerIndex, -1], // -1 bot
+      players: [playerIndex, -1], // -1 fot bot
       ships: [],
       currentPlayer: playerIndex,
       board: initializeBoard(),
       status: GameStatus.WAITING,
       lastUpdate: Date.now(),
-      type: 'single'
+      type: 'single',
     }
-    
+
     this.games.set(gameId, game)
     logger.game('Single player game created', {
-      gameId, 
+      gameId,
       player: playerIndex,
-      bot: -1
+      bot: -1,
     })
-    
+
     return game
   }
 }
 
 export const db = new GameDatabase()
 
-export const getPlayers = () => db.getPlayers()
-export const addPlayer = (player) => db.addPlayer(player)
-export const getRooms = () => db.getRooms()
-export const getGames = () => db.getGames()
-export const addGame = (game) => db.createGame(game)
-export const cleanup = () => db.cleanup()
-export const getGame = (gameId) => db.getGame(gameId)
-export const updateGame = (gameId, data) => db.updateGame(gameId, data)
-export const getRoom = (roomId) => db.getRoom(roomId)
-export const createRoom = (creator) => db.createRoom(creator)
-export const addUserToRoom = (roomId, user) => db.addUserToRoom(roomId, user)
-export const removeRoom = (roomId) => db.removeRoom(roomId)
-export const updatePlayerStats = (playerId, wins) =>
+export const getPlayers = (): Player[] => db.getPlayers()
+export const addPlayer = (player: Player): void => db.addPlayer(player)
+export const getRooms = (): Room[] => db.getRooms()
+export const getGames = (): Game[] => db.getGames()
+export const addGame = (game: Room): Game => db.createGame(game)
+export const cleanup = (): void => db.cleanup()
+export const getGame = (gameId: string): Game | undefined => db.getGame(gameId)
+export const updateGame = (gameId: string, data: Partial<Game>): Game | null =>
+  db.updateGame(gameId, data)
+export const getRoom = (roomId: string): Room | undefined => db.getRoom(roomId)
+export const createRoom = (creator: Player): Room => db.createRoom(creator)
+export const addUserToRoom = (roomId: string, user: Player): boolean =>
+  db.addUserToRoom(roomId, user)
+export const removeRoom = (roomId: string): boolean => db.removeRoom(roomId)
+export const updatePlayerStats = (playerId: number, wins: number): boolean =>
   db.updatePlayerStats(playerId, wins)
-
-export function createSinglePlayerGame(playerIndex) {
-  return db.createSinglePlayerGame(playerIndex)
-}
+export const createSinglePlayerGame = (playerIndex: number): Game =>
+  db.createSinglePlayerGame(playerIndex)

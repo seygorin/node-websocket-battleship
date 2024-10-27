@@ -1,11 +1,12 @@
-import WebSocket from 'ws'
-import {handlePlayerRequests} from './handlers/playerHandler.js'
-import {handleRoomRequests} from './handlers/roomHandler.js'
-import {handleShipRequests} from './handlers/shipHandler.js'
-import {handleGameRequests} from './handlers/gameHandler.js'
-import {sendResponse} from './utils/sendResponse.js'
-import {handleSinglePlay} from './handlers/singlePlayHandler.js'
-import {logger} from './utils/logger.js'
+import {WebSocket, WebSocketServer} from 'ws'
+import {handlePlayerRequests} from './handlers/playerHandler'
+import {handleRoomRequests} from './handlers/roomHandler'
+import {handleShipRequests} from './handlers/shipHandler'
+import {handleGameRequests} from './handlers/gameHandler'
+import {sendResponse} from './utils/sendResponse'
+import {handleSinglePlay} from './handlers/singlePlayHandler'
+import {logger} from './utils/logger'
+import {WebSocketManager} from './network/WebSocketManager'
 
 const MessageTypes = {
   REGISTER: 'reg',
@@ -17,10 +18,26 @@ const MessageTypes = {
   START_GAME: 'start_game',
   TURN: 'turn',
   FINISH: 'finish',
-  SINGLE_PLAY: 'single_play'  
+  SINGLE_PLAY: 'single_play',
+} as const
+
+type MessageType = (typeof MessageTypes)[keyof typeof MessageTypes]
+
+interface Message {
+  type: MessageType
+  data: string | any
+  id: number
 }
 
-const messageHandlers = {
+type MessageHandler = (
+  ws: WebSocket,
+  data: any,
+  id: number,
+  wss: WebSocketServer,
+  wsManager: WebSocketManager
+) => void
+
+const messageHandlers: Record<MessageType, MessageHandler> = {
   [MessageTypes.REGISTER]: handlePlayerRequests,
   [MessageTypes.CREATE_ROOM]: (ws, data, id, wss, wsManager) =>
     handleRoomRequests(ws, MessageTypes.CREATE_ROOM, data, id, wss, wsManager),
@@ -38,27 +55,39 @@ const messageHandlers = {
       wss,
       wsManager
     ),
-  [MessageTypes.SINGLE_PLAY]: handleSinglePlay
+  [MessageTypes.SINGLE_PLAY]: handleSinglePlay,
+  [MessageTypes.START_GAME]: () => {}, 
+  [MessageTypes.TURN]: () => {}, 
+  [MessageTypes.FINISH]: () => {},
 }
 
-export function handleMessage(ws, message, wss, wsManager) {
-  let parsedMessage
+export function handleMessage(
+  ws: WebSocket,
+  message: WebSocket.RawData,
+  wss: WebSocketServer,
+  wsManager: WebSocketManager
+): void {
+  let parsedMessage: Message | undefined
+
   try {
-    parsedMessage = JSON.parse(message)
+    parsedMessage = JSON.parse(message.toString()) as Message
     const {type, data, id} = parsedMessage
 
-    let parsedData = data
+    let parsedData: any = data
     if (typeof data === 'string') {
       try {
         parsedData = JSON.parse(data)
       } catch (e) {
-        logger.error('Failed to parse data string', {data, error: e.message})
+        logger.error('Failed to parse data string', {
+          data,
+          error: (e as Error).message,
+        })
       }
     }
 
     logger.game('Received message', {type, data: parsedData})
 
-    const handler = messageHandlers[type]
+    const handler = messageHandlers[type as MessageType]
     if (handler) {
       handler(ws, parsedData, id, wss, wsManager)
     } else {
@@ -67,8 +96,8 @@ export function handleMessage(ws, message, wss, wsManager) {
     }
   } catch (error) {
     logger.error('Message handling error', {
-      error: error.message,
-      stack: error.stack,
+      error: (error as Error).message,
+      stack: (error as Error).stack,
       receivedMessage: message,
     })
     const messageId = parsedMessage?.id || 0
