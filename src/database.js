@@ -1,6 +1,7 @@
 import {logger} from './utils/logger.js'
 import {GameStatus} from './types/gameTypes.js'
 import {initializeBoard} from './utils/gameUtils.js'
+import {generateGameId} from './utils/gameUtils.js'
 
 class GameDatabase {
   constructor() {
@@ -145,6 +146,29 @@ class GameDatabase {
     this.games.clear()
     logger.game('Database cleared')
   }
+
+  createSinglePlayerGame(playerIndex) {
+    const gameId = generateGameId()
+    const game = {
+      idGame: gameId,
+      players: [playerIndex, -1], // -1 для бота
+      ships: [],
+      currentPlayer: playerIndex,
+      board: initializeBoard(),
+      status: GameStatus.WAITING,
+      lastUpdate: Date.now(),
+      type: 'single'
+    }
+    
+    this.games.set(gameId, game)
+    logger.game('Single player game created', {
+      gameId, 
+      player: playerIndex,
+      bot: -1
+    })
+    
+    return game
+  }
 }
 
 export const db = new GameDatabase()
@@ -163,3 +187,7 @@ export const addUserToRoom = (roomId, user) => db.addUserToRoom(roomId, user)
 export const removeRoom = (roomId) => db.removeRoom(roomId)
 export const updatePlayerStats = (playerId, wins) =>
   db.updatePlayerStats(playerId, wins)
+
+export function createSinglePlayerGame(playerIndex) {
+  return db.createSinglePlayerGame(playerIndex)
+}

@@ -133,7 +133,7 @@ function handleAttack(ws, game, x, y, wsManager, id) {
             'finish',
             {
               winPlayer: winner,
-              я,
+              isCurrentPlayerWinner: playerId === winner,
             },
             0
           )
@@ -168,31 +168,39 @@ function handleAttack(ws, game, x, y, wsManager, id) {
     })
 
     game.players.forEach((playerId) => {
-      const playerWs = wsManager.findPlayerConnection(playerId)
-      if (playerWs) {
-        sendResponse(
-          playerWs,
-          'attack',
-          {
-            position: {x, y},
-            currentPlayer: nextPlayer,
-            status: attackResult.status,
-          },
-          id
-        )
+      if (playerId !== -1) {
+        const playerWs = wsManager.findPlayerConnection(playerId)
+        if (playerWs) {
+          sendResponse(
+            playerWs,
+            'attack',
+            {
+              position: {x, y},
+              currentPlayer: nextPlayer,
+              status: attackResult.status,
+            },
+            id
+          )
 
-        sendResponse(
-          playerWs,
-          'turn',
-          {
-            currentPlayer: nextPlayer,
-          },
-          0
-        )
+          sendResponse(
+            playerWs,
+            'turn',
+            {
+              currentPlayer: nextPlayer,
+            },
+            0
+          )
+        }
       }
     })
 
-    setTurnTimer(game, wsManager)
+    if (game.type === 'single' && nextPlayer === -1) {
+      setTimeout(() => {
+        makeBotMove(game, wsManager)
+      }, 1000)
+    } else {
+      setTurnTimer(game, wsManager)
+    }
   } catch (error) {
     logger.error('Attack handling error', {
       error: error.message,
@@ -228,6 +236,10 @@ function handleRandomAttack(ws, game, wsManager, id) {
 }
 
 function setTurnTimer(game, wsManager) {
+  if (!game.players.includes(game.currentPlayer)) {
+    return
+  }
+
   clearTurnTimer(game.idGame)
 
   const timer = setTimeout(() => {
@@ -288,7 +300,7 @@ function broadcastTurn(game, wsManager) {
         playerWs,
         'turn',
         {
-          currentPlayer: game.currentPlayer,
+          currentPlayer: nextPlayer,
         },
         0
       )
@@ -321,3 +333,75 @@ function handleGameOver(game, winner, wsManager) {
 }
 
 let turnTimers = new Map()
+
+function makeBotMove(game, wsManager) {
+  try {
+    const position = GameLogic.getRandomAttackPosition(game)
+    if (!position) {
+      logger.game('No available positions for bot attack')
+      return
+    }
+
+    logger.game('Bot making move', {
+      position,
+      gameId: game.idGame,
+    })
+
+    const attackResult = GameLogic.processAttack(game, position.x, position.y)
+
+    const nextPlayer =
+      attackResult.status === 'miss' ? game.players.find((p) => p !== -1) : -1
+
+    updateGame(game.idGame, {
+      board: game.board,
+      currentPlayer: nextPlayer,
+      status: GameStatus.PLAYING,
+    })
+
+    const playerWs = wsManager.findPlayerConnection(
+      game.players.find((p) => p !== -1)
+    )
+    if (playerWs) {
+      sendResponse(
+        playerWs,
+        'attack',
+        {
+          position: position,
+          currentPlayer: nextPlayer,
+          status: attackResult.status,
+        },
+        0
+      )
+
+      sendResponse(
+        playerWs,
+        'turn',
+        {
+          currentPlayer: nextPlayer,
+        },
+        0
+      )
+    }
+
+    if (game.type === 'single') {
+      if (nextPlayer === -1) {
+        setTimeout(() => {
+          makeBotMove(game, wsManager)
+        }, 1000)
+      } else {
+        setTurnTimer(game, wsManager)
+      }
+    } else {
+      if (nextPlayer === -1) {
+        makeBotMove(game, wsManager)
+      } else {
+        setTurnTimer(game, wsManager)
+      }
+    }
+  } catch (error) {
+    logger.error('Bot move error', {
+      error: error.message,
+      stack: error.stack,
+    })
+  }
+}

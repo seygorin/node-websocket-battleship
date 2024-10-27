@@ -4,6 +4,7 @@ import {handleRoomRequests} from './handlers/roomHandler.js'
 import {handleShipRequests} from './handlers/shipHandler.js'
 import {handleGameRequests} from './handlers/gameHandler.js'
 import {sendResponse} from './utils/sendResponse.js'
+import {handleSinglePlay} from './handlers/singlePlayHandler.js'
 import {logger} from './utils/logger.js'
 
 const MessageTypes = {
@@ -16,6 +17,7 @@ const MessageTypes = {
   START_GAME: 'start_game',
   TURN: 'turn',
   FINISH: 'finish',
+  SINGLE_PLAY: 'single_play'  
 }
 
 const messageHandlers = {
@@ -36,6 +38,7 @@ const messageHandlers = {
       wss,
       wsManager
     ),
+  [MessageTypes.SINGLE_PLAY]: handleSinglePlay
 }
 
 export function handleMessage(ws, message, wss, wsManager) {
