@@ -23,12 +23,18 @@ class GameDatabase {
     return this.players.get(index)
   }
 
-  updatePlayerStats(playerId, wins = 0) {
+  updatePlayerStats(playerId, wins) {
     const player = this.players.get(playerId)
     if (player) {
-      player.wins += wins
+      player.wins = (player.wins || 0) + wins
       this.players.set(playerId, player)
+      logger.player('Player stats updated', {
+        playerId,
+        newWins: player.wins,
+      })
+      return true
     }
+    return false
   }
 
   // Rooms

@@ -52,6 +52,6 @@ export class WebSocketManager {
   }
 
   getAllClients() {
-    return this.clients
+    return Array.from(this.clients.entries());
   }
 }

@@ -3,65 +3,40 @@ import {logger} from '../utils/logger.js'
 
 export class GameLogic {
   static processAttack(game, x, y) {
-    logger.game('Processing attack in GameLogic', {
-      x,
-      y,
-      currentPlayer: game.currentPlayer,
-      board: game.board?.[y]?.[x],
-    })
-
     const result = {
       position: {x, y},
       status: 'miss',
       currentPlayer: game.currentPlayer,
       gameOver: false,
+      winner: null,
     }
 
     const targetShip = this.findShipAtPosition(game, x, y)
-    logger.game('Found target ship', {
-      targetShip,
-      shipType: targetShip?.ship?.type,
-      shipLength: targetShip?.ship?.length,
-      shipHits: targetShip?.ship?.hits,
-    })
 
     if (targetShip) {
       game.board[y][x] = CellStatus.HIT
       const hitIndex = this.getHitIndex(targetShip.ship, x, y)
-
-      logger.game('Ship hit details', {
-        hitIndex,
-        shipHits: targetShip.ship.hits,
-        shipLength: targetShip.ship.length,
-      })
-
       targetShip.ship.hits[hitIndex] = true
 
       if (this.isShipSunk(targetShip.ship)) {
         result.status = 'killed'
         this.markMissesAroundShip(game, targetShip.ship)
-        logger.game('Ship sunk', {
-          shipType: targetShip.ship.type,
-          shipHits: targetShip.ship.hits,
-        })
 
         if (this.isGameOver(game)) {
           result.gameOver = true
           result.winner = game.currentPlayer
-          logger.game('Game is over', {
-            winner: game.currentPlayer,
-            finalBoard: game.board,
+
+          result.loser = game.players.find((p) => p !== game.currentPlayer)
+
+          logger.game('Game over detected', {
+            winner: result.winner,
+            loser: result.loser,
+            currentPlayer: game.currentPlayer,
           })
         }
       } else {
         result.status = 'shot'
-        logger.game('Ship hit but not sunk', {
-          shipType: targetShip.ship.type,
-          shipHits: targetShip.ship.hits,
-        })
       }
-    } else {
-      game.board[y][x] = CellStatus.MISS
     }
 
     return result
@@ -167,30 +142,20 @@ export class GameLogic {
   }
 
   static isGameOver(game) {
-    const enemyShips = game.ships.find((s) => s.player !== game.currentPlayer)
+    const enemyShips =
+      game.ships.find((shipSet) => shipSet.player !== game.currentPlayer)
+        ?.ships || []
 
-    logger.game('Checking game over', {
-      currentPlayer: game.currentPlayer,
-      enemyShipsCount: enemyShips?.ships?.length,
-      ships: enemyShips?.ships?.map((ship) => ({
-        type: ship.type,
-        hits: ship.hits,
-        isSunk: ship.hits.every((hit) => hit === true),
-      })),
-    })
-
-    if (!enemyShips) return false
-
-    const allShipsSunk = enemyShips.ships.every((ship) =>
+    const allShipsSunk = enemyShips.every((ship) =>
       ship.hits.every((hit) => hit === true)
     )
 
     logger.game('Game over check result', {
       allShipsSunk,
-      enemyShipsCount: enemyShips.ships.length,
+      enemyShipsCount: enemyShips.length,
     })
 
-    return allShipsSunk
+    return allShipsSunk && enemyShips.length > 0
   }
 
   static getNextPlayer(game) {

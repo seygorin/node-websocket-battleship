@@ -9,26 +9,37 @@ export function initializeBoard() {
 export function validateShips(ships) {
   return ships.map((ship) => {
     const position = {
-      x: Number(ship.position.x),
-      y: Number(ship.position.y),
+      x: Math.min(Math.max(Number(ship.position.x), 0), 9),
+      y: Math.min(Math.max(Number(ship.position.y), 0), 9),
     }
 
     const direction = !Boolean(ship.direction)
+    const length = Number(ship.length)
+
+    if (!direction) {
+      if (position.x + length > 10) {
+        position.x = 10 - length
+      }
+    } else {
+      if (position.y + length > 10) {
+        position.y = 10 - length
+      }
+    }
 
     logger.game('Validating ship', {
       type: ship.type,
-      clientDirection: ship.direction,
-      validatedDirection: direction,
-      clientSays: ship.direction ? 'vertical' : 'horizontal',
-      serverSays: direction ? 'horizontal' : 'vertical',
+      position,
+      direction,
+      length,
+      interpretation: !direction ? 'horizontal' : 'vertical',
     })
 
     return {
       position,
       direction,
-      length: Number(ship.length),
+      length,
       type: ship.type,
-      hits: new Array(ship.length).fill(false),
+      hits: new Array(length).fill(false),
     }
   })
 }

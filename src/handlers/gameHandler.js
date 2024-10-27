@@ -1,5 +1,10 @@
 import {WebSocket} from 'ws'
-import {getGame, updateGame, updatePlayerStats} from '../database.js'
+import {
+  getGame,
+  updateGame,
+  updatePlayerStats,
+  getPlayers,
+} from '../database.js'
 import {sendResponse} from '../utils/sendResponse.js'
 import {logger} from '../utils/logger.js'
 import {GameStatus} from '../types/gameTypes.js'
@@ -85,26 +90,10 @@ function validateGameState(ws, game, indexPlayer, id) {
 function handleAttack(ws, game, x, y, wsManager, id) {
   try {
     if (game.status === GameStatus.FINISHED) {
-      logger.game('Attempt to attack in finished game', {
-        gameId: game.idGame,
-        player: game.currentPlayer,
-      })
       return
     }
 
-    x
     clearTurnTimer(game.idGame)
-
-    logger.game('Processing attack', {
-      x,
-      y,
-      currentPlayer: game.currentPlayer,
-      gameId: game.idGame,
-      players: game.players,
-      shipsCount: game.ships.length,
-      board: game.board,
-    })
-
     const attackResult = GameLogic.processAttack(game, x, y)
 
     logger.game('Attack result', {
@@ -113,46 +102,70 @@ function handleAttack(ws, game, x, y, wsManager, id) {
       gameOver: attackResult.gameOver,
     })
 
-    const nextPlayer =
-      attackResult.status === 'miss'
-        ? game.players.find((p) => p !== game.currentPlayer)
-        : game.currentPlayer
-
-    logger.game('Turn transition', {
-      currentPlayer: game.currentPlayer,
-      nextPlayer,
-      attackStatus: attackResult.status,
-    })
-
-    const updatedGame = updateGame(game.idGame, {
-      board: game.board,
-      currentPlayer: nextPlayer,
-      status: attackResult.gameOver ? GameStatus.FINISHED : GameStatus.PLAYING,
-    })
-
     if (attackResult.gameOver) {
+      const winner = attackResult.winner
+
       logger.game('Game finished', {
-        winner: attackResult.winner,
+        winner,
         gameId: game.idGame,
+        players: game.players,
+      })
+
+      updatePlayerStats(winner, 1)
+
+      updateGame(game.idGame, {
+        board: game.board,
+        status: GameStatus.FINISHED,
+        winner: winner,
       })
 
       game.players.forEach((playerId) => {
         const playerWs = wsManager.findPlayerConnection(playerId)
         if (playerWs) {
+          logger.game('Sending finish notification', {
+            playerId,
+            winner,
+            isCurrentPlayerWinner: playerId === winner,
+          })
+
           sendResponse(
             playerWs,
             'finish',
             {
-              winPlayer: attackResult.winner,
+              winPlayer: winner,
+              я,
             },
             0
           )
         }
       })
 
+      const winners = getPlayers().map((p) => ({
+        name: p.name,
+        wins: p.wins || 0,
+      }))
+
+      const clients = wsManager.getAllClients()
+      for (const [clientWs] of clients) {
+        if (clientWs.readyState === WebSocket.OPEN) {
+          sendResponse(clientWs, 'update_winners', winners, 0)
+        }
+      }
+
       clearTurnTimer(game.idGame)
       return
     }
+
+    const nextPlayer =
+      attackResult.status === 'miss'
+        ? game.players.find((p) => p !== game.currentPlayer)
+        : game.currentPlayer
+
+    updateGame(game.idGame, {
+      board: game.board,
+      currentPlayer: nextPlayer,
+      status: GameStatus.PLAYING,
+    })
 
     game.players.forEach((playerId) => {
       const playerWs = wsManager.findPlayerConnection(playerId)
@@ -176,12 +189,6 @@ function handleAttack(ws, game, x, y, wsManager, id) {
           },
           0
         )
-
-        logger.game('Sent response to player', {
-          playerId,
-          attackResult,
-          nextPlayer,
-        })
       }
     })
 
