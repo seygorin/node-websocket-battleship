@@ -26,3 +26,16 @@ export interface ShipSet {
   player: number;
   ships: Ship[];
 }
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface AttackResult {
+  position: Position;
+  status: string;
+  currentPlayer: number;
+  gameOver: boolean;
+  winner: number | null;
+}

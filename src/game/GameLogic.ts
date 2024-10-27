@@ -3,7 +3,7 @@ import {logger} from '../utils/logger'
 import {Game, Position, Ship, PlayerIndex} from '../types'
 
 export class GameLogic {
-  static processAttack(game, x, y) {
+  static processAttack(game: Game, x: number, y: number): AttackResult {
     const result = {
       position: {x, y},
       status: 'miss',

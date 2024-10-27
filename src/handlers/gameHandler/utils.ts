@@ -31,6 +31,7 @@ export function handleGameOver(
   })
 
   updateGame(game.idGame, {status: GameStatus.FINISHED})
+  broadcastWinners(wsManager)
 }
 
 export function broadcastAttackResult(
