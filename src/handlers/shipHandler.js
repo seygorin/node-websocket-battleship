@@ -5,6 +5,7 @@ import {validateShips} from '../utils/gameUtils.js'
 import {GameLogic} from '../game/GameLogic.js'
 import {GameStatus, CellStatus} from '../types/gameTypes.js'
 import {logger} from '../utils/logger.js'
+import {makeBotMove} from './gameHandler.js'
 
 export function handleShipRequests(ws, data, id, wss, wsManager) {
   try {
@@ -111,18 +112,42 @@ export function handleShipRequests(ws, data, id, wss, wsManager) {
         board: emptyBoard,
       })
 
+      if (firstPlayer === -1) {
+        logger.game('Bot goes first, initiating bot move', {
+          firstPlayer,
+          gameId: game.idGame,
+        })
+
+        setTimeout(() => {
+          makeBotMove(updatedGame, wsManager)
+        }, 1000)
+      }
+
       updatedGame.players.forEach((playerId) => {
         const playerWs = wsManager.findPlayerConnection(playerId)
         if (playerWs) {
+          const playerShips = game.ships.find(
+            (s) => s.player === playerId
+          ).ships
           sendResponse(
             playerWs,
             'start_game',
             {
-              ships: game.ships.find((s) => s.player === playerId).ships,
+              ships: playerShips,
               currentPlayerIndex: playerId,
             },
             0
           )
+          logger.game('Sending ships to client', {
+            playerId,
+            ships: playerShips.map((ship) => ({
+              position: ship.position,
+              direction: ship.direction,
+              length: ship.length,
+              type: ship.type,
+              interpretation: ship.direction ? 'horizontal' : 'vertical',
+            })),
+          })
         }
       })
     } else {

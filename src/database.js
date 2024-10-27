@@ -151,7 +151,7 @@ class GameDatabase {
     const gameId = generateGameId()
     const game = {
       idGame: gameId,
-      players: [playerIndex, -1], // -1 для бота
+      players: [playerIndex, -1], // -1 bot
       ships: [],
       currentPlayer: playerIndex,
       board: initializeBoard(),

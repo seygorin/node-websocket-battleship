@@ -334,7 +334,7 @@ function handleGameOver(game, winner, wsManager) {
 
 let turnTimers = new Map()
 
-function makeBotMove(game, wsManager) {
+export function makeBotMove(game, wsManager) {
   try {
     const position = GameLogic.getRandomAttackPosition(game)
     if (!position) {
