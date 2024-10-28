@@ -16,15 +16,15 @@ import {Room, Player, Game} from '../types/database'
 const MAX_ROOM_SIZE = 2
 
 interface RoomRequestData {
-  indexRoom: string;
+  indexRoom: string
 }
 
 interface GameCreationData {
-  idGame: string;
-  idPlayer: number;
+  idGame: string
+  idPlayer: number
 }
 
-type RoomRequestType = 'create_room' | 'add_user_to_room';
+type RoomRequestType = 'create_room' | 'add_user_to_room'
 
 export function handleRoomRequests(
   ws: WebSocket,
@@ -37,15 +37,15 @@ export function handleRoomRequests(
   try {
     switch (type) {
       case 'create_room':
-        handleCreateRoom(ws, data, id, wss, wsManager);
-        break;
+        handleCreateRoom(ws, data, id, wss, wsManager)
+        break
       case 'add_user_to_room':
-        handleJoinRoom(ws, data, id, wss, wsManager);
-        break;
+        handleJoinRoom(ws, data, id, wss, wsManager)
+        break
     }
   } catch (error) {
-    logger.error('Room handling error', error);
-    sendResponse(ws, 'error', { message: 'Failed to process room request' }, id);
+    logger.error('Room handling error', error)
+    sendResponse(ws, 'error', {message: 'Failed to process room request'}, id)
   }
 }
 
@@ -57,14 +57,14 @@ function handleCreateRoom(
   wsManager: WebSocketManager
 ): void {
   try {
-    const currentPlayer = wsManager.getPlayerForClient(ws);
+    const currentPlayer = wsManager.getPlayerForClient(ws)
     logger.room('Create room request', {
       currentPlayer,
       wsManagerClients: wsManager.getAllClients().length,
-    });
+    })
 
     if (!currentPlayer || !currentPlayer.name) {
-      logger.error('Invalid player data for room creation', { currentPlayer });
+      logger.error('Invalid player data for room creation', {currentPlayer})
       sendResponse(
         ws,
         'error',
@@ -73,8 +73,8 @@ function handleCreateRoom(
           error: true,
         },
         id
-      );
-      return;
+      )
+      return
     }
 
     const room = createRoom({
@@ -82,36 +82,36 @@ function handleCreateRoom(
       index: currentPlayer.index,
       password: currentPlayer.password,
       wins: currentPlayer.wins,
-    });
+    })
 
-    logger.room('Room created', { room });
+    logger.room('Room created', {room})
 
     const success = addUserToRoom(room.roomId, {
       name: currentPlayer.name,
       index: currentPlayer.index,
       password: currentPlayer.password,
       wins: currentPlayer.wins,
-    });
+    })
 
     if (success) {
       logger.room('Player added to room', {
         player: currentPlayer,
         roomId: room.roomId,
-      });
-      updateRooms(ws, wss);
+      })
+      updateRooms(ws, wss)
     } else {
       logger.error('Failed to add player to room', {
         player: currentPlayer,
         roomId: room.roomId,
-      });
+      })
     }
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     logger.error('Room creation error', {
       error: err.message,
       stack: err.stack,
-    });
-    sendResponse(ws, 'error', { message: 'Failed to create room' }, id);
+    })
+    sendResponse(ws, 'error', {message: 'Failed to create room'}, id)
   }
 }
 
@@ -122,17 +122,17 @@ function handleJoinRoom(
   wss: WebSocketServer,
   wsManager: WebSocketManager
 ): void {
-  const { indexRoom } = data;
-  const room = getRoom(indexRoom);
+  const {indexRoom} = data
+  const room = getRoom(indexRoom)
 
   if (!validateRoomJoin(ws, room, wsManager, id)) {
-    return;
+    return
   }
 
-  const currentPlayer = wsManager.getPlayerForClient(ws);
+  const currentPlayer = wsManager.getPlayerForClient(ws)
   if (!currentPlayer) {
-    sendResponse(ws, 'error', { message: 'No active player found' }, id);
-    return;
+    sendResponse(ws, 'error', {message: 'No active player found'}, id)
+    return
   }
 
   const success = addUserToRoom(indexRoom, {
@@ -140,16 +140,16 @@ function handleJoinRoom(
     index: currentPlayer.index,
     password: currentPlayer.password,
     wins: currentPlayer.wins,
-  });
+  })
 
   if (success) {
-    updateRooms(ws, wss);
+    updateRooms(ws, wss)
 
-    const updatedRoom = getRoom(indexRoom);
+    const updatedRoom = getRoom(indexRoom)
     if (updatedRoom && updatedRoom.roomUsers.length === MAX_ROOM_SIZE) {
-      handleGameCreation(updatedRoom, ws, wss, wsManager);
-      removeRoom(indexRoom);
-      updateRooms(ws, wss);
+      handleGameCreation(updatedRoom, ws, wss, wsManager)
+      removeRoom(indexRoom)
+      updateRooms(ws, wss)
     }
   }
 }
@@ -161,30 +161,30 @@ function validateRoomJoin(
   id: number
 ): boolean {
   if (!room) {
-    sendResponse(ws, 'error', { message: 'Room not found' }, id);
-    return false;
+    sendResponse(ws, 'error', {message: 'Room not found'}, id)
+    return false
   }
 
-  const currentPlayer = wsManager.getPlayerForClient(ws);
+  const currentPlayer = wsManager.getPlayerForClient(ws)
   if (!currentPlayer) {
-    sendResponse(ws, 'error', { message: 'No active player found' }, id);
-    return false;
+    sendResponse(ws, 'error', {message: 'No active player found'}, id)
+    return false
   }
 
   if (room.roomUsers.length >= MAX_ROOM_SIZE) {
-    sendResponse(ws, 'error', { message: 'Room is full' }, id);
-    return false;
+    sendResponse(ws, 'error', {message: 'Room is full'}, id)
+    return false
   }
 
   const isPlayerInRoom = room.roomUsers.some(
     (user) => user.index === currentPlayer.index
-  );
+  )
   if (isPlayerInRoom) {
-    sendResponse(ws, 'error', { message: 'You are already in this room' }, id);
-    return false;
+    sendResponse(ws, 'error', {message: 'You are already in this room'}, id)
+    return false
   }
 
-  return true;
+  return true
 }
 
 function handleGameCreation(
@@ -193,27 +193,32 @@ function handleGameCreation(
   wss: WebSocketServer,
   wsManager: WebSocketManager
 ): void {
-  const game = addGame(room);
-  notifyGameCreated(room, game.idGame, ws, wss);
+  const game = addGame(room)
+  notifyGameCreated(room, game.idGame, ws, wss, wsManager)
 }
 
 function notifyGameCreated(
   room: Room,
   gameId: string,
   ws: WebSocket,
-  wss: WebSocketServer
+  wss: WebSocketServer,
+  wsManager: WebSocketManager
 ): void {
   room.roomUsers.forEach((user) => {
-    logger.game('Sending game creation notification', { user, gameId });
+    logger.game('Sending game creation notification', {user, gameId})
     const gameData: GameCreationData = {
       idGame: gameId,
       idPlayer: user.index,
-    };
-    sendResponse(ws, 'create_game', gameData, 0, wss);
-  });
+    }
+
+    const playerWs = wsManager.findPlayerConnection(user.index)
+    if (playerWs) {
+      sendResponse(playerWs, 'create_game', gameData, 0)
+    }
+  })
 }
 
 function updateRooms(ws: WebSocket, wss: WebSocketServer): void {
-  const rooms = getRooms();
-  sendResponse(ws, 'update_room', rooms, 0, wss);
+  const rooms = getRooms()
+  sendResponse(ws, 'update_room', rooms, 0, wss)
 }

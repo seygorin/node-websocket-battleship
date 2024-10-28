@@ -19,12 +19,12 @@ interface GameRequestData {
 }
 
 interface AttackResponse {
-  player: string;  // 'ourField' или 'enemyField'
-  position: {      // Оборачиваем x и y в объект position
-    x: number;
-    y: number;
-  };
-  status: string;  // 'killed', 'shot' или 'miss'
+  player: string
+  position: {
+    x: number
+    y: number
+  }
+  status: string
 }
 
 interface TurnResponse {
@@ -214,72 +214,73 @@ export function handleAttack(
   id: number
 ): void {
   try {
-    const attackResult = GameLogic.processAttack(game, x, y);
-    
+    const attackResult = GameLogic.processAttack(game, x, y)
+
     logger.game('Attack result', {
       result: attackResult,
       currentPlayer: game.currentPlayer,
       gameOver: attackResult.gameOver,
-    });
+    })
 
     if (attackResult.gameOver) {
-      handleGameOver(game, attackResult.winner!, wsManager);
-      return;
+      handleGameOver(game, attackResult.winner!, wsManager)
+      return
     }
 
-    const nextPlayer = attackResult.status === 'miss'
-      ? game.players.find(p => p !== game.currentPlayer)!
-      : game.currentPlayer;
+    const nextPlayer =
+      attackResult.status === 'miss'
+        ? game.players.find((p) => p !== game.currentPlayer)!
+        : game.currentPlayer
 
     updateGame(game.idGame, {
       board: game.board,
       currentPlayer: nextPlayer,
       status: GameStatus.PLAYING,
-    });
+    })
 
-    // Отправляем результат всем игрокам
-    game.players.forEach(playerId => {
-      const playerWs = wsManager.findPlayerConnection(playerId);
+    game.players.forEach((playerId) => {
+      const playerWs = wsManager.findPlayerConnection(playerId)
       if (playerWs) {
-        const isAttacker = playerId === game.currentPlayer;
-        
+        const isAttacker = playerId === game.currentPlayer
+
         const response: AttackResponse = {
           player: isAttacker ? 'enemyField' : 'ourField',
           position: {
             x: x,
-            y: y
+            y: y,
           },
-          status: attackResult.status
-        };
+          status: attackResult.status,
+        }
 
         logger.game('Sending attack response to player', {
           playerId,
-          response
-        });
+          response,
+        })
 
-        // Отправляем результат атаки
-        sendResponse(playerWs, 'attack', response, id);
+        sendResponse(playerWs, 'attack', response, id)
 
-        // Отправляем информацию о текущем ходе
-        sendResponse(playerWs, 'turn', {
-          currentPlayer: nextPlayer
-        }, 0);
+        sendResponse(
+          playerWs,
+          'turn',
+          {
+            currentPlayer: nextPlayer,
+          },
+          0
+        )
       }
-    });
+    })
 
-    // Если следующий ход бота
     if (nextPlayer === -1 && !attackResult.gameOver) {
       setTimeout(() => {
-        makeBotMove(game, wsManager);
-      }, 1000);
+        makeBotMove(game, wsManager)
+      }, 1000)
     }
-
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     logger.error('Attack handling error', {
       error: err.message,
       stack: err.stack,
-    });
-    sendResponse(ws, 'error', { message: 'Failed to process attack' }, id);
+    })
+    sendResponse(ws, 'error', {message: 'Failed to process attack'}, id)
   }
 }

@@ -156,61 +156,31 @@ function handleAllPlayersReady(
   ws: WebSocket,
   wsManager: WebSocketManager
 ): void {
-  const firstPlayer =
-    game.players[Math.floor(Math.random() * game.players.length)]
-
-  logger.game('All players ready, starting game', {
-    firstPlayer,
-    players: game.players,
-    shipsCount: game.ships.length,
-  })
-
-  const emptyBoard: number[][] = Array(10)
-    .fill(null)
-    .map(() => Array(10).fill(CellStatus.EMPTY))
+  const firstPlayer = game.players[Math.floor(Math.random() * game.players.length)]
 
   const updatedGame = updateGame(game.idGame, {
     currentPlayer: firstPlayer,
     status: GameStatus.PLAYING,
-    board: emptyBoard,
+    board: Array(10).fill(null).map(() => Array(10).fill(CellStatus.EMPTY))
   })
 
-  if (updatedGame && firstPlayer === -1) {
-    logger.game('Bot goes first, initiating bot move', {
-      firstPlayer,
-      gameId: game.idGame,
-    })
-
-    setTimeout(() => {
-      makeBotMove(updatedGame, wsManager)
-    }, 1000)
-  }
-
   if (updatedGame) {
-    updatedGame.players.forEach((playerId) => {
+    game.players.forEach((playerId) => {
       const playerWs = wsManager.findPlayerConnection(playerId)
       const playerShipSet = game.ships.find((s) => s.player === playerId)
 
       if (playerWs && playerShipSet) {
-        const response: StartGameResponse = {
-          ships: playerShipSet.ships,
-          currentPlayerIndex: playerId,
+        const response = {
+          ships: playerShipSet.ships.map(ship => ({
+            position: ship.position,
+            direction: ship.direction,
+            length: ship.length,
+            type: ship.type
+          })),
+          currentPlayerIndex: firstPlayer
         }
 
         sendResponse(playerWs, 'start_game', response, 0)
-
-        logger.game('Sending ships to client', {
-          playerId,
-          ships: playerShipSet.ships.map(
-            (ship): ShipLogData => ({
-              position: ship.position,
-              direction: ship.direction,
-              length: ship.length,
-              type: ship.type,
-              interpretation: ship.direction ? 'horizontal' : 'vertical',
-            })
-          ),
-        })
       }
     })
   }
